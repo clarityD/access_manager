@@ -4,35 +4,40 @@ import sqlite3
 
 class ConnectionManager:
 
-    def __init__(self, pool):
-        self.pool = pool
+    def __init__(self, pool=None):
+        if isinstance(pool, ConnectionPool):
+            self.pool = pool
 
     def __enter__(self):
         self.obj = self.pool.acquire()
         return self.obj
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, ex_type, ex_value, ex_traceback):
         self.pool.release(self.obj)
 
 
 class Connection:
 
     def __init__(self):
-        self.connection = None
+        self._sql_connection = None
 
-    def new(self, file_name=None):
+    def open(self, file_name=None):
         if file_name is None:
             try:
-                self.connection = sqlite3.connect('file::memory:?cache=shared')
+                self._sql_connection = sqlite3.connect('file::memory:?cache=shared')
             except sqlite3.Error as e:
                 print(e)
         else:
             try:
-                self.connection = sqlite3.connect('file_name')
+                self._sql_connection = sqlite3.connect(f'{file_name}')
             except sqlite3.Error as e:
                 print(e)
         print(f"Using object {id(self)}")
-        return self.connection
+        return self._sql_connection
+
+    def close(self):
+        self._sql_connection.close()
+        self._sql_connection = None
 
 
 class ConnectionPool:
@@ -43,12 +48,6 @@ class ConnectionPool:
         self.in_use: List[Connection] = []
         for _ in range(0, size):
             self.free.append(Connection())
-
-    def open(self):
-        pass
-
-    def close(self):
-        pass
 
     def acquire(self) -> Connection:
         assert len(self.free) > 0
@@ -63,10 +62,4 @@ class ConnectionPool:
 
 
 # Create Connection pool
-pool = ConnectionPool(2)
-
-with ConnectionManager(pool) as r:
-    r.test()
-
-with ConnectionManager(pool) as r2:
-    r2.test()
+pool = ConnectionPool(1)
